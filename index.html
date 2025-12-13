@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0">
+    <title>Moisprite Walker</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            /* Retro stone floor using inline SVG */
+            background-color: #5c5c64;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Crect fill='%235a5a62' width='64' height='64'/%3E%3Crect fill='%23686870' x='2' y='2' width='28' height='28'/%3E%3Crect fill='%23646468' x='34' y='2' width='28' height='28'/%3E%3Crect fill='%23626268' x='2' y='34' width='28' height='28'/%3E%3Crect fill='%236a6a72' x='34' y='34' width='28' height='28'/%3E%3Crect fill='%235e5e66' x='4' y='4' width='24' height='24'/%3E%3Crect fill='%235c5c64' x='36' y='4' width='24' height='24'/%3E%3Crect fill='%235a5a62' x='4' y='36' width='24' height='24'/%3E%3Crect fill='%23606068' x='36' y='36' width='24' height='24'/%3E%3Crect fill='%234a4a52' x='0' y='0' width='64' height='2'/%3E%3Crect fill='%234a4a52' x='0' y='32' width='64' height='2'/%3E%3Crect fill='%234a4a52' x='0' y='0' width='2' height='64'/%3E%3Crect fill='%234a4a52' x='32' y='0' width='2' height='64'/%3E%3Crect fill='%23727278' x='6' y='6' width='4' height='2'/%3E%3Crect fill='%23727278' x='20' y='14' width='6' height='2'/%3E%3Crect fill='%236e6e76' x='38' y='8' width='4' height='2'/%3E%3Crect fill='%23727278' x='50' y='18' width='4' height='2'/%3E%3Crect fill='%236e6e76' x='10' y='42' width='6' height='2'/%3E%3Crect fill='%23727278' x='22' y='50' width='4' height='2'/%3E%3Crect fill='%23727278' x='42' y='40' width='4' height='2'/%3E%3Crect fill='%236e6e76' x='52' y='52' width='6' height='2'/%3E%3C/svg%3E");
+            background-size: 64px 64px;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+        
+        #sprite {
+            position: absolute;
+            background-image: url('moisprite.png');
+            background-repeat: no-repeat;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+        
+        #birthday-text {
+            position: absolute;
+            bottom: 16%;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: 'Press Start 2P', cursive;
+            font-size: clamp(16px, 4vw, 48px);
+            color: #ffd700;
+            text-shadow: 
+                4px 4px 0 #8b4513,
+                -2px -2px 0 #ff6b00,
+                2px -2px 0 #ff6b00,
+                -2px 2px 0 #8b4513;
+            text-align: center;
+            line-height: 1.8;
+            z-index: 10;
+            image-rendering: pixelated;
+        }
+    </style>
+</head>
+<body>
+    <div id="sprite"></div>
+    <div id="birthday-text"><span style="white-space: nowrap;">HAPPY BIRTHDAY</span><br>MOISES</div>
+    
+    <script>
+        const sprite = document.getElementById('sprite');
+        const birthdayText = document.getElementById('birthday-text');
+        
+        // Sprite sheet config: 4 columns, 4 rows
+        const COLS = 4;
+        const ROWS = 4;
+        const FRAME_W = 192; // Each frame width in spritesheet
+        const FRAME_H = 192; // Each frame height in spritesheet
+        
+        // Direction to row mapping
+        const DIR = { UP: 0, RIGHT: 1, DOWN: 2, LEFT: 3 };
+        
+        // State
+        let x, y;
+        let targetX, targetY;
+        let direction = DIR.DOWN;
+        let frame = 0;
+        let speed = 2;
+        let animInterval = null;
+        let spriteSize;
+        let textBounds = null;
+        
+        function updateTextBounds() {
+            const rect = birthdayText.getBoundingClientRect();
+            const padding = 20; // Extra padding around text
+            textBounds = {
+                left: rect.left - padding,
+                right: rect.right + padding,
+                top: rect.top - padding,
+                bottom: rect.bottom + padding
+            };
+        }
+        
+        function getSpriteBounds() {
+            const halfSize = spriteSize / 2;
+            return {
+                left: x - halfSize * 0.6,
+                right: x + halfSize * 0.6,
+                top: y - halfSize * 0.3,
+                bottom: y + halfSize * 0.5
+            };
+        }
+        
+        function checkCollision(nextX, nextY) {
+            if (!textBounds) return false;
+            
+            const halfSize = spriteSize / 2;
+            const spriteBounds = {
+                left: nextX - halfSize * 0.6,
+                right: nextX + halfSize * 0.6,
+                top: nextY - halfSize * 0.3,
+                bottom: nextY + halfSize * 0.5
+            };
+            
+            return !(spriteBounds.right < textBounds.left ||
+                     spriteBounds.left > textBounds.right ||
+                     spriteBounds.bottom < textBounds.top ||
+                     spriteBounds.top > textBounds.bottom);
+        }
+        
+        function pickNewTargetAwayFromText() {
+            // Pick a new target that avoids the text area
+            speed = 1 + Math.random() * 3;
+            const animSpeed = Math.max(80, 200 - speed * 30);
+            clearInterval(animInterval);
+            animInterval = setInterval(nextFrame, animSpeed);
+            
+            // Simply pick a target in the upper 70% of the screen (away from text at bottom)
+            const safeHeight = window.innerHeight * 0.7;
+            targetX = spriteSize + Math.random() * (window.innerWidth - spriteSize * 2);
+            targetY = spriteSize + Math.random() * (safeHeight - spriteSize * 2);
+        }
+        
+        function resize() {
+            // Sprite is ~30% of screen size (based on smaller dimension)
+            spriteSize = Math.min(window.innerWidth, window.innerHeight) * 0.3;
+            sprite.style.width = spriteSize + 'px';
+            sprite.style.height = spriteSize + 'px';
+            sprite.style.backgroundSize = (spriteSize * COLS) + 'px ' + (spriteSize * ROWS) + 'px';
+            updateSpriteFrame();
+        }
+        
+        function updateSpriteFrame() {
+            const bgX = -frame * spriteSize;
+            const bgY = -direction * spriteSize;
+            sprite.style.backgroundPosition = bgX + 'px ' + bgY + 'px';
+        }
+        
+        function pickNewTarget() {
+            // Random speed between 1 and 4 pixels per frame
+            speed = 1 + Math.random() * 3;
+            
+            // Adjust animation speed based on movement speed
+            const animSpeed = Math.max(80, 200 - speed * 30);
+            clearInterval(animInterval);
+            animInterval = setInterval(nextFrame, animSpeed);
+            
+            // Pick a random edge to walk to (can walk off screen)
+            const edge = Math.floor(Math.random() * 4);
+            const margin = spriteSize * 1.5; // How far off screen to go
+            
+            switch(edge) {
+                case 0: // Top
+                    targetX = Math.random() * window.innerWidth;
+                    targetY = -margin;
+                    break;
+                case 1: // Right
+                    targetX = window.innerWidth + margin;
+                    targetY = Math.random() * window.innerHeight;
+                    break;
+                case 2: // Bottom
+                    targetX = Math.random() * window.innerWidth;
+                    targetY = window.innerHeight + margin;
+                    break;
+                case 3: // Left
+                    targetX = -margin;
+                    targetY = Math.random() * window.innerHeight;
+                    break;
+            }
+        }
+        
+        function pickEntryPoint() {
+            // Enter from a random edge
+            const edge = Math.floor(Math.random() * 4);
+            const margin = spriteSize * 1.5;
+            
+            switch(edge) {
+                case 0: // From top
+                    x = Math.random() * window.innerWidth;
+                    y = -margin;
+                    break;
+                case 1: // From right
+                    x = window.innerWidth + margin;
+                    y = Math.random() * window.innerHeight;
+                    break;
+                case 2: // From bottom
+                    x = Math.random() * window.innerWidth;
+                    y = window.innerHeight + margin;
+                    break;
+                case 3: // From left
+                    x = -margin;
+                    y = Math.random() * window.innerHeight;
+                    break;
+            }
+            
+            // Target somewhere on screen (upper 70% to avoid text at bottom)
+            const safeHeight = window.innerHeight * 0.7;
+            targetX = spriteSize + Math.random() * (window.innerWidth - spriteSize * 2);
+            targetY = spriteSize + Math.random() * (safeHeight - spriteSize * 2);
+            
+            speed = 1 + Math.random() * 3;
+            const animSpeed = Math.max(80, 200 - speed * 30);
+            animInterval = setInterval(nextFrame, animSpeed);
+        }
+        
+        function nextFrame() {
+            frame = (frame + 1) % COLS;
+            updateSpriteFrame();
+        }
+        
+        function updateDirection() {
+            const dx = targetX - x;
+            const dy = targetY - y;
+            
+            // Pick direction based on which axis has more distance
+            if (Math.abs(dx) > Math.abs(dy)) {
+                direction = dx > 0 ? DIR.RIGHT : DIR.LEFT;
+            } else {
+                direction = dy > 0 ? DIR.DOWN : DIR.UP;
+            }
+        }
+        
+        function move() {
+            const dx = targetX - x;
+            const dy = targetY - y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist < speed) {
+                // Reached target
+                x = targetX;
+                y = targetY;
+                
+                // Check if off screen
+                const margin = spriteSize * 1.5;
+                const offScreen = x < -margin || x > window.innerWidth + margin ||
+                                  y < -margin || y > window.innerHeight + margin;
+                
+                if (offScreen) {
+                    pickEntryPoint();
+                } else {
+                    pickNewTarget();
+                }
+                updateDirection();
+            } else {
+                // Calculate next position
+                const nextX = x + (dx / dist) * speed;
+                const nextY = y + (dy / dist) * speed;
+                
+                // Check for collision with birthday text
+                if (checkCollision(nextX, nextY)) {
+                    // Collision detected! Move away from text (upward) and pick new target
+                    y -= speed * 2; // Push sprite up away from text
+                    pickNewTargetAwayFromText();
+                    updateDirection();
+                } else {
+                    // No collision, move normally
+                    x = nextX;
+                    y = nextY;
+                }
+            }
+            
+            // Position sprite (centered on x,y)
+            sprite.style.left = (x - spriteSize / 2) + 'px';
+            sprite.style.top = (y - spriteSize / 2) + 'px';
+            
+            requestAnimationFrame(move);
+        }
+        
+        function init() {
+            resize();
+            updateTextBounds();
+            pickEntryPoint();
+            updateDirection();
+            move();
+        }
+        
+        window.addEventListener('resize', () => {
+            resize();
+            updateTextBounds();
+        });
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
+
