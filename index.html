@@ -40,6 +40,14 @@
             background-image: url('matsprite.png');
         }
         
+        #sprite3 {
+            background-image: url('olliesprite.png');
+        }
+        
+        #sprite4 {
+            background-image: url('jacksprite.png');
+        }
+        
         #birthday-text {
             position: absolute;
             bottom: 16%;
@@ -63,6 +71,8 @@
 <body>
     <div id="sprite1" class="sprite"></div>
     <div id="sprite2" class="sprite"></div>
+    <div id="sprite3" class="sprite"></div>
+    <div id="sprite4" class="sprite"></div>
     <div id="birthday-text"><span style="white-space: nowrap;">HAPPY BIRTHDAY</span><br>MOISES</div>
     
     <script>
@@ -258,7 +268,9 @@
         // Create sprites
         const sprite1 = new Sprite('sprite1');
         const sprite2 = new Sprite('sprite2');
-        const sprites = [sprite1, sprite2];
+        const sprite3 = new Sprite('sprite3');
+        const sprite4 = new Sprite('sprite4');
+        const sprites = [sprite1, sprite2, sprite3, sprite4];
         
         function updateTextBounds() {
             const rect = birthdayText.getBoundingClientRect();
@@ -318,32 +330,39 @@
             // Decrement collision cooldowns
             sprites.forEach(s => { if (s.collisionCooldown > 0) s.collisionCooldown--; });
             
-            // Check sprite-to-sprite collision (only if both are off cooldown)
-            if (sprite1.collisionCooldown === 0 && sprite2.collisionCooldown === 0 && 
-                sprite1.checkSpriteCollision(sprite2)) {
-                // Push them apart and pick new targets away from each other
-                const dx = sprite2.x - sprite1.x;
-                const dy = sprite2.y - sprite1.y;
-                const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-                
-                // Push apart
-                const pushX = (dx / dist) * sprite1.speed * 2;
-                const pushY = (dy / dist) * sprite1.speed * 2;
-                
-                sprite1.x -= pushX;
-                sprite1.y -= pushY;
-                sprite2.x += pushX;
-                sprite2.y += pushY;
-                
-                // Pick new targets away from each other
-                sprite1.pickNewTargetAwayFrom(sprite2.x, sprite2.y);
-                sprite2.pickNewTargetAwayFrom(sprite1.x, sprite1.y);
-                sprite1.updateDirection();
-                sprite2.updateDirection();
-                
-                // Set cooldown to prevent repeated collision handling (60 frames = ~1 second)
-                sprite1.collisionCooldown = 60;
-                sprite2.collisionCooldown = 60;
+            // Check sprite-to-sprite collision for all pairs
+            for (let i = 0; i < sprites.length; i++) {
+                for (let j = i + 1; j < sprites.length; j++) {
+                    const s1 = sprites[i];
+                    const s2 = sprites[j];
+                    
+                    if (s1.collisionCooldown === 0 && s2.collisionCooldown === 0 && 
+                        s1.checkSpriteCollision(s2)) {
+                        // Push them apart and pick new targets away from each other
+                        const dx = s2.x - s1.x;
+                        const dy = s2.y - s1.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                        
+                        // Push apart
+                        const pushX = (dx / dist) * s1.speed * 2;
+                        const pushY = (dy / dist) * s1.speed * 2;
+                        
+                        s1.x -= pushX;
+                        s1.y -= pushY;
+                        s2.x += pushX;
+                        s2.y += pushY;
+                        
+                        // Pick new targets away from each other
+                        s1.pickNewTargetAwayFrom(s2.x, s2.y);
+                        s2.pickNewTargetAwayFrom(s1.x, s1.y);
+                        s1.updateDirection();
+                        s2.updateDirection();
+                        
+                        // Set cooldown to prevent repeated collision handling
+                        s1.collisionCooldown = 60;
+                        s2.collisionCooldown = 60;
+                    }
+                }
             }
             
             requestAnimationFrame(move);
@@ -353,15 +372,13 @@
             resize();
             updateTextBounds();
             
-            // Start sprites from different edges
-            sprite1.pickEntryPoint();
-            sprite1.updateDirection();
-            
-            // Delay second sprite slightly so they don't start together
-            setTimeout(() => {
-                sprite2.pickEntryPoint();
-                sprite2.updateDirection();
-            }, 1000);
+            // Start sprites from different edges with staggered delays
+            sprites.forEach((sprite, index) => {
+                setTimeout(() => {
+                    sprite.pickEntryPoint();
+                    sprite.updateDirection();
+                }, index * 800); // 800ms between each sprite entering
+            });
             
             move();
         }
