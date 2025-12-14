@@ -91,6 +91,7 @@
                 this.frame = 0;
                 this.speed = 2;
                 this.animInterval = null;
+                this.collisionCooldown = 0; // Prevent rapid collision handling
             }
             
             resize() {
@@ -233,6 +234,7 @@
                 
                 this.speed = 1 + Math.random() * 3;
                 const animSpeed = Math.max(80, 200 - this.speed * 30);
+                clearInterval(this.animInterval); // CRITICAL: Clear old interval first!
                 this.animInterval = setInterval(() => this.nextFrame(), animSpeed);
             }
             
@@ -298,11 +300,12 @@
                     const nextX = sprite.x + (dx / dist) * sprite.speed;
                     const nextY = sprite.y + (dy / dist) * sprite.speed;
                     
-                    // Check text collision
-                    if (sprite.checkTextCollision(nextX, nextY)) {
+                    // Check text collision (only if off cooldown)
+                    if (sprite.collisionCooldown === 0 && sprite.checkTextCollision(nextX, nextY)) {
                         sprite.y -= sprite.speed * 2;
                         sprite.pickNewTargetAwayFrom(sprite.x, textBounds.top);
                         sprite.updateDirection();
+                        sprite.collisionCooldown = 30; // Cooldown for text collision
                     } else {
                         sprite.x = nextX;
                         sprite.y = nextY;
@@ -312,8 +315,12 @@
                 sprite.updatePosition();
             });
             
-            // Check sprite-to-sprite collision
-            if (sprite1.checkSpriteCollision(sprite2)) {
+            // Decrement collision cooldowns
+            sprites.forEach(s => { if (s.collisionCooldown > 0) s.collisionCooldown--; });
+            
+            // Check sprite-to-sprite collision (only if both are off cooldown)
+            if (sprite1.collisionCooldown === 0 && sprite2.collisionCooldown === 0 && 
+                sprite1.checkSpriteCollision(sprite2)) {
                 // Push them apart and pick new targets away from each other
                 const dx = sprite2.x - sprite1.x;
                 const dy = sprite2.y - sprite1.y;
@@ -333,6 +340,10 @@
                 sprite2.pickNewTargetAwayFrom(sprite1.x, sprite1.y);
                 sprite1.updateDirection();
                 sprite2.updateDirection();
+                
+                // Set cooldown to prevent repeated collision handling (60 frames = ~1 second)
+                sprite1.collisionCooldown = 60;
+                sprite2.collisionCooldown = 60;
             }
             
             requestAnimationFrame(move);
